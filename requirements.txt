@@ -1,0 +1,9 @@
+timm
+yapf==0.40.0
+ortools==9.2.9972
+shapely==1.8.5.post1
+similaritymeasures
+iso3166
+fvcore
+ujson
+av2

@@ -7,9 +7,89 @@ This repo is the official PyTorch implementation for paper:
 
 Our framework, named Topo2D, enhances both lane detection and topology reasoning capabilities by integrating 2D lane priors. The 2D and 3D lane detectors are with similar transformer-based architectures. For 3D lane detection, we use the 2D lane query features and 2D coordinates obtained by the 2D lane decoder to initialize the 3D lane queries and positional embeddings. For topology prediction, we utilize a comprehensive approach that not only involves the features from 3D lanes and traffic elements, but also integrates corresponding 2D lane features, thereby enhancing overall performance. We validate our Topo2D on the multi-view topology reasoning benchmark OpenLane-V2 and the single-view 3D lane detection benchmark OpenLane. Topo2D achieves state-of-the-art performance on both benchmarks.
 
+## Table of Contents
+- [News](#News)
+- [Installation](#Installation)
+- [Prepare Dataset](#Prepare-Dataset)
+- [Train and Evaluate](#Train-and-Evaluate)
+- [Main Results](#Main-Results)
+- [Citation](#Citation)
+- [Acknowledgement](#Acknowledgement)
+
 ## News
-<!-- - [2024/06/05] The code and models are released. -->
+- [2024/07/16] The code and models are released.
 - [2024/06/05] The paper is released on arXiv.
+
+## Installation
+
+### 1. Create a conda virtual environment and activate it.
+```shell
+conda create -n topo2d python=3.8
+conda activate topo2d
+pip install torch==1.10.1+cu113 torchvision==0.11.2+cu113 torchaudio==0.10.1+cu113 -f https://download.pytorch.org/whl/cu113/torch_stable.html
+```
+
+### 2. Install mm-series packages.
+```shell
+pip install mmcv-full==1.4.0 -f https://download.openmmlab.com/mmcv/dist/cu113/torch1.10.0/index.html
+pip install mmdet==2.14.0
+pip install mmsegmentation==0.14.1
+
+cd mmdetection3d
+pip install -v -e .
+```
+
+### 3. Install FlashAttention.
+```shell
+git clone https://github.com/Dao-AILab/flash-attention.git
+git checkout v0.2.8
+python setup.py install
+```
+
+### 4. Install other requirements.
+```shell
+pip install -r requirements.txt
+```
+
+### 5. Prepare pretrained models.
+```shell
+mkdir ckpts
+cd ckpts 
+wget https://download.pytorch.org/models/resnet50-19c8e357.pth
+```
+
+## Prepare Dataset
+
+For the Openlane-V2 dataset, follow [getting_started.md](https://github.com/OpenDriveLab/OpenLane-V2/blob/master/docs/getting_started.md) to download the data and install the environment, then run the following code to preprocess the data.
+
+```shell
+python tools/preprocess_openlanev2.py
+```
+
+The data folders are organized as follows:
+```
+data
+├── OpenLane-V2
+│   ├── data_dict_subset_A.json
+│   ├── data_dict_subset_A_test.pkl
+│   ├── data_dict_subset_A_train.pkl
+│   ├── data_dict_subset_A_val.pkl
+│   ├── test
+│   ├── train
+│   └── val
+```
+
+## Train and Evaluate
+
+Train Topo2D with 4 GPUs:
+```shell
+bash tools/dist_train.sh projects/configs/topo2d/openlanev2.py 4
+```
+
+Evaluate Topo2D with 4 GPUs:
+```shell
+bash tools/dist_test.sh projects/configs/topo2d/openlanev2.py openlanev2_exp6_10_24e.pth 4
+```
 
 ## Main Results
 
@@ -22,6 +102,9 @@ Our framework, named Topo2D, enhances both lane detection and topology reasoning
 |     MapTR     | ResNet-50 |  24   |   24.2   |       8.3       |      43.5       |       2.3        |       8.9        |
 |    TopoNet    | ResNet-50 |  24   |   39.8   |      28.6       |      48.6       |       10.9       |       23.8       |
 | Topo2D (Ours) | ResNet-50 |  24   | **44.5** |    **29.1**     |    **50.6**     |     **22.3**     |     **26.2**     |
+
+[[config](projects/configs/topo2d/openlanev2.py)]
+[[ckpt](https://drive.google.com/file/d/1kYTIlBiMMGs6zNM25XDXGHZ616IcXkw-/view?usp=drive_link)]
 
 ### Results on OpenLane validation set.
 
