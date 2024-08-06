@@ -973,10 +973,10 @@ def resample_laneline_in_y(input_lane, y_steps, out_vis=False):
     # at least two points are included
     assert(input_lane.shape[0] >= 2)
 
-    # y_min = np.min(input_lane[:, 1])-5
-    # y_max = np.max(input_lane[:, 1])+5
-    y_min = np.min(input_lane[:, 1])
-    y_max = np.max(input_lane[:, 1])
+    y_min = np.min(input_lane[:, 1])-5
+    y_max = np.max(input_lane[:, 1])+5
+    # y_min = np.min(input_lane[:, 1])
+    # y_max = np.max(input_lane[:, 1])
 
     if input_lane.shape[1] < 3:
         input_lane = np.concatenate([input_lane, np.zeros([input_lane.shape[0], 1], dtype=np.float32)], axis=1)

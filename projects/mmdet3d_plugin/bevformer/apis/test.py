@@ -21,6 +21,9 @@ from mmdet.core import encode_mask_results
 import mmcv
 import numpy as np
 import pycocotools.mask as mask_util
+from mmcv import Config
+from mmcv.cnn import get_model_complexity_info
+from mmdet3d.models import builder
 
 def custom_encode_mask_results(mask_results):
     """Encode bitmap mask to RLE code. Semantic Masks only
@@ -58,6 +61,20 @@ def custom_multi_gpu_test(model, data_loader, tmpdir=None, gpu_collect=False):
     Returns:
         list: The prediction results.
     """
+    # cfg = Config.fromfile('projects/configs/topo2d/openlanev2.py')
+    # model = builder.build_detector(cfg.model).cuda()
+    # model.eval()
+    
+    # if hasattr(model, 'forward_dummy'):
+    #     model.forward = model.forward_dummy
+    # else:
+    #     raise NotImplementedError
+
+    # input_shape = (7, 3, 400, 512)
+    # with torch.no_grad():
+    #     flops, params = get_model_complexity_info(model, input_shape)
+    # print('Flops: {}\nParams: {}'.format(flops, params))
+
     model.eval()
     bbox_results = []
     mask_results = []

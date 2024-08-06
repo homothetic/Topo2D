@@ -72,23 +72,6 @@ def lane_smoothing(lane, y_end=200, interp_step=0.5):
     y = np.append(y, lane_interp[-1, 1])
     return np.vstack([x, y, z]).T
 
-
-def generate_annotation(lane1, dev, distances):
-    new_lane = np.zeros(lane1.shape)
-    new_lane[:, 0] = lane1[:, 0] + distances / dev[:, 0]
-    new_lane[:, 1] = lane1[:, 1]
-    new_lane[:, 2] = lane1[:, 2]
-    return new_lane
-
-def generate_annotation2(lane1, dev, distances):
-    # import pdb
-    # pdb.set_trace()
-    new_lane = np.zeros(lane1.shape)
-    new_lane[:, 0] = lane1[:, 0] + np.abs(distances * dev[:, 0])
-    new_lane[:, 1] = lane1[:, 1] + np.abs(distances * dev[:, 1])
-    new_lane[:, 2] = lane1[:, 2]
-    return new_lane
-
 def make_lane_y_mono_inc(lane):
     """
         Due to lose of height dim, projected lanes to flat ground plane may not have monotonically increasing y.
@@ -109,18 +92,18 @@ def make_lane_y_mono_inc(lane):
     return lane
 
 def transform_annotation(anno, max_lanes=20, anchor_len=20, index_begin=5, anchor_len_2d=72):
-    gflatYnorm = 100
-    gflatXnorm = 30
-    gflatZnorm = 10
+    # gflatYnorm = 100
+    # gflatXnorm = 30
+    # gflatZnorm = 10
     gt_3dlanes = anno['gt_3dlanes']
     categories = anno['categories']
     lanes3d     = np.ones((max_lanes, index_begin + anchor_len * 3), dtype=np.float32) * -1e5
     lanes3d[:, 1] = 0
     lanes3d[:, 0] = 1
-    lanes3d_norm = np.ones((max_lanes, index_begin + anchor_len * 3), dtype=np.float32) * -1e5
-    lanes3d_norm[:, 1] = 0
-    lanes3d_norm[:, 0] = 1
-    lanes2d = np.ones((max_lanes, anchor_len_2d * 3), dtype=np.float32) * -1e5
+    # lanes3d_norm = np.ones((max_lanes, index_begin + anchor_len * 3), dtype=np.float32) * -1e5
+    # lanes3d_norm[:, 1] = 0
+    # lanes3d_norm[:, 0] = 1
+    # lanes2d = np.ones((max_lanes, anchor_len_2d * 3), dtype=np.float32) * -1e5
     
     for lane_pos, (gt_3dlane, cate) in enumerate(zip(gt_3dlanes, categories)):
         gt_3dlane = gt_3dlanes[lane_pos]
@@ -130,24 +113,23 @@ def transform_annotation(anno, max_lanes=20, anchor_len=20, index_begin=5, ancho
         lanes3d[lane_pos, 0] = 0
         lanes3d[lane_pos, 1] = cate
 
-        lanes3d_norm[lane_pos, 0] = 0
-        lanes3d_norm[lane_pos, 1] = cate
-
+        # lanes3d_norm[lane_pos, 0] = 0
+        # lanes3d_norm[lane_pos, 1] = cate
 
         lanes3d[lane_pos, index_begin:(index_begin+anchor_len)] = Xs
-        lanes3d_norm[lane_pos, index_begin:(index_begin+anchor_len)] = Xs / gflatXnorm
+        # lanes3d_norm[lane_pos, index_begin:(index_begin+anchor_len)] = Xs / gflatXnorm
 
         lanes3d[lane_pos, (index_begin+anchor_len):(index_begin+anchor_len*2)] = Zs
-        lanes3d_norm[lane_pos, (index_begin+anchor_len):(index_begin+anchor_len*2)] = Zs / gflatZnorm
+        # lanes3d_norm[lane_pos, (index_begin+anchor_len):(index_begin+anchor_len*2)] = Zs / gflatZnorm
         
         lanes3d[lane_pos, (index_begin+anchor_len*2):(index_begin+anchor_len*3)] = vis  # vis_flag
-        lanes3d_norm[lane_pos, (index_begin+anchor_len*2):(index_begin+anchor_len*3)] = vis
+        # lanes3d_norm[lane_pos, (index_begin+anchor_len*2):(index_begin+anchor_len*3)] = vis
 
     new_anno = {
         'path': anno['path'],
         'gt_3dlanes': lanes3d,
-        'gt_3dlanes_norm': lanes3d_norm,
-        'old_anno': anno,
+        # 'gt_3dlanes_norm': lanes3d_norm,
+        # 'old_anno': anno,
         'gt_camera_extrinsic': anno['gt_camera_extrinsic'],
         'gt_camera_intrinsic': anno['gt_camera_intrinsic'],
     }
@@ -292,7 +274,7 @@ def extract_data_with_smoothing(data_root, anno_file, tar_path, max_lanes=20, te
         anno['gt_3dlanes'] = new_anno['gt_3dlanes']
         anno['gt_camera_extrinsic'] = new_anno['gt_camera_extrinsic']
         anno['gt_camera_intrinsic'] = new_anno['gt_camera_intrinsic']
-        anno['old_anno'] = new_anno['old_anno']
+        # anno['old_anno'] = new_anno['old_anno']
         pickle_path = os.path.join(tar_path, '/'.join(anno['filename'].split('/')[-3:-1]))
         mmcv.mkdir_or_exist(pickle_path)
         pickle_file = os.path.join(tar_path, '/'.join(anno['filename'].split('/')[-3:]).replace('.jpg', '.pkl'))
@@ -302,38 +284,6 @@ def extract_data_with_smoothing(data_root, anno_file, tar_path, max_lanes=20, te
                      'gt_camera_extrinsic':anno['gt_camera_extrinsic'],
                      'gt_camera_intrinsic':anno['gt_camera_intrinsic']}, w)
         w.close()
-
-def vis_anno(pickle_path):
-    fig = plt.figure()
-    ax1 = fig.add_subplot(131)
-    ax2 = fig.add_subplot(132)
-    ax3 = fig.add_subplot(133, projection='3d')
-    r = open(pickle_path, 'rb')
-    p = pickle.load(r)
-    img = cv2.imread(os.path.join('../../data/openlane', p['filename']))
-    img = cv2.resize(img, (480, 360))
-    ax1.imshow(img)
-    gt_3dlanes = p['gt_3dlanes']
-    gt_3dlanes = gt_3dlanes[gt_3dlanes[:, 1] > 0]
-    extrinsic = p['gt_camera_extrinsic']
-    intrinsic = p['gt_camera_intrinsic']
-    project_matrix = projection_g2im_extrinsic(extrinsic, intrinsic)
-    y_steps = np.linspace(1, 100, 100)
-    for lane in gt_3dlanes:
-        xs, zs, vises = lane[5:105], lane[205:305], lane[405:505]
-        xs = xs[vises > 0.5]
-        zs = zs[vises > 0.5]
-        ys = y_steps[vises > 0.5]
-        x2d, y2d = projective_transformation(project_matrix, xs, ys, zs)
-        x2d = (x2d / 1920 * 480)  
-        y2d = (y2d / 1280 * 360)
-        valid_mask = np.logical_and(np.logical_and(x2d >= 0, x2d < 480), np.logical_and(y2d >= 0, y2d < 360))
-        x2d = x2d[valid_mask]
-        y2d = y2d[valid_mask]
-        ax1.plot(x2d, y2d, 'mediumpurple', lw=3)
-        ax2.plot(xs, ys, 'mediumpurple', lw=3)
-        ax3.plot(xs, ys, zs, 'mediumpurple', lw=3)
-    plt.savefig('../../output/openlane_test.png')
     
 def merge_annotations(anno_path, json_file):
     all_files = glob.glob(os.path.join(anno_path, 'seg*', '*.json'))

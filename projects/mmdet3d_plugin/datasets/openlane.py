@@ -14,15 +14,8 @@ from torch.utils.data import Dataset
 from copy import deepcopy
 from scipy.interpolate import interp1d
 
-# from ..builder import DATASETS
-# from ..pipelines import Compose
 from mmdet.datasets import DATASETS
 from mmdet.datasets.pipelines import Compose
-
-# from ..tools.utils import *
-# from ..tools import eval_openlane
-# from .map_utils.utils import *
-# from .map_utils import eval_openlane
 
 from projects.mmdet3d_plugin.datasets.map_utils.utils import *
 from projects.mmdet3d_plugin.datasets.map_utils import eval_openlane
@@ -300,45 +293,47 @@ class OpenlaneDataset(Dataset):
 
         self.gt_lane_start = 5
         self.gt_lane_len = 200
-        # self.num_pts_per_gt_vec = 20
-        # # [NOTE] preprocess gt mask
-        # SEG_WIDTH = 45
-        # ratio_h, ratio_w = self.h_org / self.h_net, self.w_org / self.w_net
-        # thickness = int(SEG_WIDTH / ratio_w) # 45 // 2.4 = 18
-        # for idx in tqdm.tqdm(range(len(self.img_infos))):
-        #     results = self.img_infos[idx].copy()
-        #     with open(results['anno_file'], 'rb') as f:
-        #         obj = pickle.load(f)
-        #         results.update(obj)
-        #     results['gt_project_matrix'] = projection_g2im_extrinsic(results['gt_camera_extrinsic'], results['gt_camera_intrinsic'])
-        #     results['gt_homography_matrix'] = homography_g2im_extrinsic(results['gt_camera_extrinsic'], results['gt_camera_intrinsic'])
+        if not os.path.exists(self.img_dir.replace('images', 'gtmask')):
+            # [NOTE] preprocess gt mask
+            SEG_WIDTH = 45
+            ratio_h, ratio_w = self.h_org / self.h_net, self.w_org / self.w_net
+            thickness = int(SEG_WIDTH / ratio_w) # 45 // 1.875 = 24
+            for idx in tqdm.tqdm(range(len(self.img_infos))):
+                results = self.img_infos[idx].copy()
+                with open(results['anno_file'], 'rb') as f:
+                    obj = pickle.load(f)
+                    results.update(obj)
+                results['gt_project_matrix'] = projection_g2im_extrinsic(results['gt_camera_extrinsic'], results['gt_camera_intrinsic'])
+                results['gt_homography_matrix'] = homography_g2im_extrinsic(results['gt_camera_extrinsic'], results['gt_camera_intrinsic'])
 
-        #     valid_lanes = np.where(results['gt_3dlanes'][:, 1] > 0)
-        #     gt_pts = results['gt_3dlanes'][valid_lanes] # N, 605
-        #     x_target = gt_pts[:, self.gt_lane_start : self.gt_lane_start + self.gt_lane_len]
-        #     y_target = np.expand_dims(np.linspace(1, self.gt_lane_len, self.gt_lane_len), axis=0).repeat(gt_pts.shape[0], axis=0)
-        #     z_target = gt_pts[:, self.gt_lane_start + self.gt_lane_len : self.gt_lane_start + self.gt_lane_len * 2]
-        #     vis_target = gt_pts[:, self.gt_lane_start + self.gt_lane_len * 2 : ]
-            
-        #     # seg idx has the same order as gt_lanes
-        #     seg_idx_label = np.zeros((gt_pts.shape[0], self.h_net, self.w_net), dtype=np.int8)
-        #     for i in range(gt_pts.shape[0]):
-        #         valid_pts = np.where(vis_target[i] > 0.5)[0]
-        #         x_target_i, y_target_i, z_target_i = x_target[i][valid_pts], y_target[i][valid_pts], z_target[i][valid_pts]
-        #         u_vals, v_vals = self.projective_transformation(results['gt_project_matrix'], 
-        #                         x_target_i, y_target_i, z_target_i, only_in_img=True)
-        #         u_vals, v_vals = self.resample_laneline_in_y_2d(u_vals, v_vals, 
-        #                         self.num_pts_per_gt_vec)
-        #         for j in range(len(u_vals) - 1):
-        #             seg_idx_label[i] = cv2.line(
-        #                 seg_idx_label[i],
-        #                 (int(u_vals[j] / ratio_w), int(v_vals[j] / ratio_h)), 
-        #                 (int(u_vals[j + 1] / ratio_w), int(v_vals[j + 1] / ratio_h)),
-        #                 color=np.array([1]).item(), # 0: ground, 1: lane
-        #                 thickness=thickness)
-        #     filename = results['filename'].replace('images', 'gtmask').replace('jpg', 'npy')
-        #     os.makedirs(os.path.dirname(filename), exist_ok=True)
-        #     np.save(filename, seg_idx_label)
+                valid_lanes = np.where(results['gt_3dlanes'][:, 1] > 0)
+                gt_pts = results['gt_3dlanes'][valid_lanes] # N, 605
+                x_target = gt_pts[:, self.gt_lane_start : self.gt_lane_start + self.gt_lane_len]
+                y_target = np.expand_dims(np.linspace(1, self.gt_lane_len, self.gt_lane_len), axis=0).repeat(gt_pts.shape[0], axis=0)
+                z_target = gt_pts[:, self.gt_lane_start + self.gt_lane_len : self.gt_lane_start + self.gt_lane_len * 2]
+                vis_target = gt_pts[:, self.gt_lane_start + self.gt_lane_len * 2 : ]
+                
+                # seg idx has the same order as gt_lanes
+                seg_idx_label = np.zeros((gt_pts.shape[0], self.h_net, self.w_net), dtype=np.int8)
+                for i in range(gt_pts.shape[0]):
+                    valid_pts = np.where(vis_target[i] > 0.5)[0]
+                    x_target_i, y_target_i, z_target_i = x_target[i][valid_pts], y_target[i][valid_pts], z_target[i][valid_pts]
+                    u_vals, v_vals = self.projective_transformation(results['gt_project_matrix'], 
+                                    x_target_i, y_target_i, z_target_i, only_in_img=True)
+                    if len(u_vals) < 2:
+                        continue
+                    u_vals, v_vals = self.resample_laneline_in_y_2d(u_vals, v_vals, 
+                                    self.num_pts_per_gt_vec)
+                    for j in range(len(u_vals) - 1):
+                        seg_idx_label[i] = cv2.line(
+                            seg_idx_label[i],
+                            (int(u_vals[j] / ratio_w), int(v_vals[j] / ratio_h)), 
+                            (int(u_vals[j + 1] / ratio_w), int(v_vals[j + 1] / ratio_h)),
+                            color=np.array([1]).item(), # 0: ground, 1: lane
+                            thickness=thickness)
+                filename = results['filename'].replace('images', 'gtmask').replace('jpg', 'npy')
+                os.makedirs(os.path.dirname(filename), exist_ok=True)
+                np.save(filename, seg_idx_label)
 
     def load_annotations(self):
         print('Now loading annotations...')

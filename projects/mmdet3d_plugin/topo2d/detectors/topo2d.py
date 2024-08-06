@@ -28,6 +28,8 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 import pickle as pkl
+from tqdm import tqdm
+from mmdet.datasets.pipelines import to_tensor
 
 @DETECTORS.register_module()
 class Topo2D(MVXTwoStageDetector):
@@ -792,8 +794,51 @@ class Topo2D(MVXTwoStageDetector):
         return losses
 
     def forward_dummy(self, img):
-        dummy_metas = None
-        return self.forward_test(img=img, img_metas=[[dummy_metas]])
+        # dummy data
+        data = {}
+        data['gt_camera_extrinsic'] = np.eye(4, 4, dtype=np.float32)[np.newaxis, np.newaxis].repeat(7, axis=1)
+        data['gt_camera_extrinsic'] = to_tensor(data['gt_camera_extrinsic']).cuda()
+        data['gt_camera_intrinsic'] = np.eye(4, 4, dtype=np.float32)[np.newaxis, np.newaxis].repeat(7, axis=1)
+        data['gt_camera_intrinsic'] = to_tensor(data['gt_camera_intrinsic']).cuda()
+        data['gt_project_matrix'] = np.eye(4, 4, dtype=np.float32)[np.newaxis, np.newaxis].repeat(7, axis=1)
+        data['gt_project_matrix'] = to_tensor(data['gt_project_matrix']).cuda()
+        data['gt_homography_matrix'] = np.eye(4, 4, dtype=np.float32)[np.newaxis, np.newaxis].repeat(7, axis=1)
+        data['gt_homography_matrix'] = to_tensor(data['gt_homography_matrix']).cuda()
+        
+        data['img_metas'] = [dict(
+            scene_token = '10000',
+            sample_idx = '315969904849927215',
+            img_paths = None, # dummy
+            img_shape = [(1600, 2048, 3) for _ in range(7)],
+            scale_factor = 1.0,
+            pad_shape = [(1600, 2048, 3) for _ in range(7)],
+            lidar2img = [np.eye(4, 4, dtype=np.float32) for _ in range(7)],
+            can_bus = np.ones((18, ), dtype=np.float32),
+            ori_shape = [(1550, 2048, 3) for _ in range(7)], # dummy
+        )]
+
+        repetitions = 1000
+        # with torch.no_grad():
+        for rep in tqdm(range(repetitions)):
+            self.forward_test(img=img, **data)
+        torch.cuda.synchronize()
+
+        starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
+        timings = np.zeros((repetitions, 1))
+        # with torch.no_grad():
+        for rep in tqdm(range(repetitions)):
+            starter.record()
+            self.forward_test(img=img, **data)
+            ender.record()
+            torch.cuda.synchronize()
+            curr_time = starter.elapsed_time(ender)
+            timings[rep] = curr_time
+
+        avg = repetitions / timings.sum()
+        print(f'fps: {1000 * avg}')
+        import pdb; pdb.set_trace()
+
+        return self.forward_test(img=img, **data)
 
     def forward(self, return_loss=True, **kwargs):
         """Calls either forward_train or forward_test depending on whether

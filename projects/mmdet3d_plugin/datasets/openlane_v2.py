@@ -7,6 +7,7 @@ from mmcv.parallel import DataContainer as DC
 from math import factorial
 from pyquaternion import Quaternion
 from shapely.geometry import LineString, Point, box
+import pickle as pkl
 
 import mmcv
 from mmdet.datasets import DATASETS
@@ -17,34 +18,24 @@ from .openlanev2.centerline.evaluation import evaluate as openlanev2_evaluate
 from .openlanev2.centerline.evaluation import evaluate_centerline as openlanev2_evaluate_centerline
 from .openlanev2.centerline.visualization.utils import COLOR_DICT, interp_arc
 
-COLOR_GT = (0, 255, 0)
-COLOR_GT_TOPOLOGY = (0, 127, 0)
+# COLOR_GT = (0, 255, 0) # green
+# COLOR_GT_TOPOLOGY = (0, 127, 0)
+COLOR_GT = (0, 0, 255) # red
+COLOR_GT_TOPOLOGY = (0, 0, 127)
 COLOR_PRED = (0, 0, 255)
 COLOR_PRED_TOPOLOGY = (0, 0, 127)
 COLOR_DICT = {k: (v[2], v[1], v[0]) for k, v in COLOR_DICT.items()}
 COLOR_NUM = len(COLOR_DICT.keys())
 
 def render_pv(images, lidar2imgs, 
-              gt_lane, gt_label,
-            #   gt_lc, pred_lc, gt_te, gt_te_attr, pred_te, pred_te_attr,
+            #   gt_lane, gt_label,
+              gt_lc, pred_lc, gt_te, gt_te_attr, pred_te, pred_te_attr,
             ):
 
     results = []
 
     for idx, (image, lidar2img) in enumerate(zip(images, lidar2imgs)):
-
-        for i, lane in enumerate(gt_lane):
-            xyz1 = np.concatenate([lane, np.ones((lane.shape[0], 1))], axis=1)
-            xyz1 = xyz1 @ lidar2img.T
-            xyz1 = xyz1[xyz1[:, 2] > 1e-5]
-            if xyz1.shape[0] == 0:
-                continue
-            points_2d = xyz1[:, :2] / xyz1[:, 2:3]
-
-            points_2d = points_2d.astype(int)
-            image = cv2.polylines(image, points_2d[None], False, COLOR_DICT[i % COLOR_NUM], 2)
-
-        # if gt_lc is not None :
+        # if gt_lc is not None:
         #     for lc in gt_lc:
         #         xyz1 = np.concatenate([lc, np.ones((lc.shape[0], 1))], axis=1)
         #         xyz1 = xyz1 @ lidar2img.T
@@ -56,29 +47,30 @@ def render_pv(images, lidar2imgs,
         #         points_2d = points_2d.astype(int)
         #         image = cv2.polylines(image, points_2d[None], False, COLOR_GT, 2)
 
-        # if pred_lc is not None:
-        #     for lc in pred_lc:
-        #         xyz1 = np.concatenate([lc, np.ones((lc.shape[0], 1))], axis=1)
-        #         xyz1 = xyz1 @ lidar2img.T
-        #         xyz1 = xyz1[xyz1[:, 2] > 1e-5]
-        #         if xyz1.shape[0] == 0:
-        #             continue
-        #         points_2d = xyz1[:, :2] / xyz1[:, 2:3]
+        if pred_lc is not None:
+            for lc in pred_lc:
+                lc = interp_arc(lc, 101) # 
+                xyz1 = np.concatenate([lc, np.ones((lc.shape[0], 1))], axis=1)
+                xyz1 = xyz1 @ lidar2img.T
+                xyz1 = xyz1[xyz1[:, 2] > 1e-5]
+                if xyz1.shape[0] == 0:
+                    continue
+                points_2d = xyz1[:, :2] / xyz1[:, 2:3]
 
-        #         points_2d = points_2d.astype(int)
-        #         image = cv2.polylines(image, points_2d[None], False, COLOR_PRED, 2)
+                points_2d = points_2d.astype(int)
+                image = cv2.polylines(image, points_2d[None], False, COLOR_PRED, 2)
 
-        # if idx == 0: # front view image
+        if idx == 0: # front view image
             
-        #     if gt_te is not None:
-        #         for bbox, attr in zip(gt_te, gt_te_attr):
-        #             b = bbox.astype(np.int32)
-        #             image = render_corner_rectangle(image, (b[0], b[1]), (b[2], b[3]), COLOR_DICT[attr], 3, 1)
+            # if gt_te is not None:
+            #     for bbox, attr in zip(gt_te, gt_te_attr):
+            #         b = bbox.astype(np.int32)
+            #         image = render_corner_rectangle(image, (b[0], b[1]), (b[2], b[3]), COLOR_GT, 3, 1)
 
-        #     if pred_te is not None:
-        #         for bbox, attr in zip(pred_te, pred_te_attr):
-        #             b = bbox.astype(np.int32)
-        #             image = cv2.rectangle(image, (b[0], b[1]), (b[2], b[3]), COLOR_DICT[attr], 3)
+            if pred_te is not None:
+                for bbox, attr in zip(pred_te, pred_te_attr):
+                    b = bbox.astype(np.int32)
+                    image = render_corner_rectangle(image, (b[0], b[1]), (b[2], b[3]), COLOR_PRED, 3, 1)
 
         results.append(image)
 
@@ -117,58 +109,57 @@ def render_corner_rectangle(img, pt1, pt2, color,
 
 def render_front_view(image, lidar2img, gt_lc, pred_lc, gt_te, pred_te, gt_topology_lcte, pred_topology_lcte):
 
-    if gt_topology_lcte is not None:
-        for lc_idx, lcte in enumerate(gt_topology_lcte):
-            for te_idx, connected in enumerate(lcte):
-                if connected:
-                    lc = gt_lc[lc_idx]
-                    lc = lc[len(lc) // 2][None, ...]
-                    xyz1 = np.concatenate([lc, np.ones((lc.shape[0], 1))], axis=1)
-                    xyz1 = xyz1 @ lidar2img.T
-                    xyz1 = xyz1[xyz1[:, 2] > 1e-5]
-                    if xyz1.shape[0] == 0:
-                        continue
-                    p1 = (xyz1[:, :2] / xyz1[:, 2:3])[0].astype(int)
+    # if gt_topology_lcte is not None:
+    #     for lc_idx, lcte in enumerate(gt_topology_lcte):
+    #         for te_idx, connected in enumerate(lcte):
+    #             if connected:
+    #                 lc = gt_lc[lc_idx]
+    #                 lc = lc[len(lc) // 2][None, ...]
+    #                 xyz1 = np.concatenate([lc, np.ones((lc.shape[0], 1))], axis=1)
+    #                 # xyz1[:, 0] = xyz1[:, 0] + 5.40
+    #                 # xyz1[:, 1] = xyz1[:, 1] - 0.01
+    #                 xyz1 = xyz1 @ lidar2img.T
+    #                 xyz1 = xyz1[xyz1[:, 2] > 1e-5]
+    #                 if xyz1.shape[0] == 0:
+    #                     continue
+    #                 # xyz1 = xyz1[len(xyz1) // 2][None, ...]
+    #                 p1 = (xyz1[:, :2] / xyz1[:, 2:3])[0].astype(int)
 
-                    te = gt_te[te_idx]
-                    p2 = np.array([(te[0]+te[2])/2, te[3]]).astype(int)
+    #                 te = gt_te[te_idx]
+    #                 p2 = np.array([(te[0]+te[2])/2, te[3]]).astype(int)
 
-                    image = cv2.arrowedLine(image, (p2[0], p2[1]), (p1[0], p1[1]), COLOR_GT_TOPOLOGY, tipLength=0.03)
+    #                 image = cv2.arrowedLine(image, (p2[0], p2[1]), (p1[0], p1[1]), COLOR_GT_TOPOLOGY, thickness=2, tipLength=0.03)
 
     if pred_topology_lcte is not None:
         for lc_idx, lcte in enumerate(pred_topology_lcte):
             for te_idx, connected in enumerate(lcte):
                 if connected:
+                # if connected and lc_idx == 4:
                     lc = pred_lc[lc_idx]
                     lc = lc[len(lc) // 2][None, ...]
                     xyz1 = np.concatenate([lc, np.ones((lc.shape[0], 1))], axis=1)
+                    # xyz1[:, 0] = xyz1[:, 0] + 2.00
+                    # xyz1[:, 1] = xyz1[:, 1] + 0.03
                     xyz1 = xyz1 @ lidar2img.T
                     xyz1 = xyz1[xyz1[:, 2] > 1e-5]
                     if xyz1.shape[0] == 0:
                         continue
+                    # xyz1 = xyz1[len(xyz1) // 2][None, ...]
                     p1 = (xyz1[:, :2] / xyz1[:, 2:3])[0].astype(int)
 
                     te = pred_te[te_idx]
                     p2 = np.array([(te[0]+te[2])/2, te[3]]).astype(int)
 
-                    image = cv2.arrowedLine(image, (p2[0], p2[1]), (p1[0], p1[1]), COLOR_PRED_TOPOLOGY, tipLength=0.03)
+                    image = cv2.arrowedLine(image, (p2[0], p2[1]), (p1[0], p1[1]), COLOR_PRED_TOPOLOGY, thickness=2, tipLength=0.03)
 
     return image
     
-def render_bev(gt_lane, gt_label,
-        # gt_lc=None, pred_lc=None, gt_topology_lclc=None, pred_topology_lclc=None, 
+def render_bev( # gt_lane, gt_label,
+        gt_lc=None, pred_lc=None, gt_topology_lclc=None, pred_topology_lclc=None, 
         map_size=[-52, 52, -27, 27], scale=20
     ):
 
-    image = np.zeros((int(scale*(map_size[1]-map_size[0])), int(scale*(map_size[3] - map_size[2])), 3), dtype=np.uint8)
-
-    for i, lane in enumerate(gt_lane):
-        # color = COLOR_DICT[i % COLOR_NUM]
-        color = COLOR_DICT[gt_label[i] % COLOR_NUM]
-        draw_coor = (scale * (-lane[:, :2] + np.array([map_size[1], map_size[3]]))).astype(np.int)
-        image = cv2.polylines(image, [draw_coor[:, [1,0]]], False, color, max(round(scale * 0.2), 1))
-        image = cv2.circle(image, (draw_coor[0, 1], draw_coor[0, 0]), max(round(scale * 0.5), 3), color, -1)
-        image = cv2.circle(image, (draw_coor[-1, 1], draw_coor[-1, 0]), max(round(scale * 0.5), 3), color, -1)
+    image = np.ones((int(scale*(map_size[1] - map_size[0])), int(scale*(map_size[3] - map_size[2])), 3), dtype=np.uint8) * 255
 
     # if gt_lc is not None:
     #     for lc in gt_lc:
@@ -189,24 +180,24 @@ def render_bev(gt_lane, gt_label,
     #                 p2 = (scale * (-l2[l2_mid, :2] + np.array([map_size[1], map_size[3]]))).astype(np.int)
     #                 image = cv2.arrowedLine(image, (p1[1], p1[0]), (p2[1], p2[0]), COLOR_GT_TOPOLOGY, max(round(scale * 0.1), 1), tipLength=0.03)
 
-    # if pred_lc is not None:
-    #     for lc in pred_lc:
-    #         draw_coor = (scale * (-lc[:, :2] + np.array([map_size[1], map_size[3]]))).astype(np.int)
-    #         image = cv2.polylines(image, [draw_coor[:, [1,0]]], False, COLOR_PRED, max(round(scale * 0.2), 1))
-    #         image = cv2.circle(image, (draw_coor[0, 1], draw_coor[0, 0]), max(round(scale * 0.5), 3), COLOR_PRED, -1)
-    #         image = cv2.circle(image, (draw_coor[-1, 1], draw_coor[-1, 0]), max(round(scale * 0.5), 3), COLOR_PRED, -1)
+    if pred_lc is not None:
+        for lc in pred_lc:
+            draw_coor = (scale * (-lc[:, :2] + np.array([map_size[1], map_size[3]]))).astype(np.int)
+            image = cv2.polylines(image, [draw_coor[:, [1,0]]], False, COLOR_PRED, max(round(scale * 0.2), 1))
+            image = cv2.circle(image, (draw_coor[0, 1], draw_coor[0, 0]), max(round(scale * 0.5), 3), COLOR_PRED, -1)
+            image = cv2.circle(image, (draw_coor[-1, 1], draw_coor[-1, 0]), max(round(scale * 0.5), 3), COLOR_PRED, -1)
 
-    # if pred_topology_lclc is not None:
-    #     for l1_idx, lclc in enumerate(pred_topology_lclc):
-    #         for l2_idx, connected in enumerate(lclc):
-    #             if connected:
-    #                 l1 = pred_lc[l1_idx]
-    #                 l2 = pred_lc[l2_idx]
-    #                 l1_mid = len(l1) // 2
-    #                 l2_mid = len(l2) // 2
-    #                 p1 = (scale * (-l1[l1_mid, :2] + np.array([map_size[1], map_size[3]]))).astype(np.int)
-    #                 p2 = (scale * (-l2[l2_mid, :2] + np.array([map_size[1], map_size[3]]))).astype(np.int)
-    #                 image = cv2.arrowedLine(image, (p1[1], p1[0]), (p2[1], p2[0]), COLOR_PRED_TOPOLOGY, max(round(scale * 0.1), 1), tipLength=0.03)
+    if pred_topology_lclc is not None:
+        for l1_idx, lclc in enumerate(pred_topology_lclc):
+            for l2_idx, connected in enumerate(lclc):
+                if connected:
+                    l1 = pred_lc[l1_idx]
+                    l2 = pred_lc[l2_idx]
+                    l1_mid = len(l1) // 2
+                    l2_mid = len(l2) // 2
+                    p1 = (scale * (-l1[l1_mid, :2] + np.array([map_size[1], map_size[3]]))).astype(np.int)
+                    p2 = (scale * (-l2[l2_mid, :2] + np.array([map_size[1], map_size[3]]))).astype(np.int)
+                    image = cv2.arrowedLine(image, (p1[1], p1[0]), (p2[1], p2[0]), COLOR_PRED_TOPOLOGY, max(round(scale * 0.1), 1), tipLength=0.03)
 
     return image
 
@@ -985,16 +976,13 @@ class OpenLaneV2SubsetADataset(Custom3DDataset):
         Returns:
             dict: Evaluation results for evaluation metric.
         """
-        # if show:
-        #     assert out_dir, 'Expect out_dir when show is set.'
-        #     logger.info(f'Visualizing results at {out_dir}...')
-        #     self.show(results, out_dir)
-        #     logger.info(f'Visualize done.')
-
         # import pdb; pdb.set_trace()
         print(f'Starting format results...')
         gt_dict = self.format_openlanev2_gt()
         pred_dict, eval_topo = self.format_results(results)
+        # vis_dir = './vis'
+        # os.makedirs(vis_dir, exist_ok=True)
+        # self.visualize(pred_dict, vis_dir, None, **kwargs)
 
         print(f'Starting openlanev2 evaluate...')
         metric_results = openlanev2_evaluate_centerline(gt_dict, pred_dict, eval_topo)
@@ -1099,13 +1087,28 @@ class OpenLaneV2SubsetADataset(Custom3DDataset):
         
         assert visualization_dir, 'Please specify visualization_dir for saving visualization.'
 
+        que_set = [
+            '10001', '10020', '10023', '10024', 
+            '10037', '10041', '10122',
+        ]
+        ste_set = [
+            '315974684749927219',
+            '315974479149927220',
+            '315970671749927213',
+            '315971917949927217',
+            '315966157849927218',
+            '315976666349927222',
+            '315966073049927216',
+        ]
         print('\nStart visualization...\n')
-            
+        
         for index, (key, prediction) in enumerate(pred_dict['results'].items()):
             if visualization_num and index >= visualization_num:
                 print(f'\nOnly {visualization_num} frames are visualized.\n')
                 return
 
+            if key[1] not in que_set or key[2] not in ste_set:
+                continue
             frame = self.collection.get_frame_via_identifier(key)
             prediction = prediction['predictions']
 
@@ -1120,10 +1123,10 @@ class OpenLaneV2SubsetADataset(Custom3DDataset):
                 }
             }
             gt_result = {key: {'annotation': frame.get_annotations()}}
-            try:
-                metric_results = openlanev2_evaluate(gt_result, pred_result, verbose=False)
-            except Exception:
-                metric_results = None
+            # try:
+            #     metric_results = openlanev2_evaluate(gt_result, pred_result, verbose=False)
+            # except Exception:
+            metric_results = None
 
             # filter lc
             pred_lc_mask = np.array([lc['confidence'] for lc in prediction['lane_centerline']]) > confidence_threshold

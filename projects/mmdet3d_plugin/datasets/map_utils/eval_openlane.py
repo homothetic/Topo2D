@@ -270,13 +270,13 @@ class OpenLaneEval(object):
             pred_category = [int(lane['category']) for i, lane in enumerate(pred_lanelines)]
             pred_laneLines_prob = [np.array(lane['laneLines_prob']) for i, lane in enumerate(pred_lanelines)]
 
-            # filter out probability
-            pred_lanes = [pred_lanes[ii] for ii in range(len(pred_laneLines_prob)) if
-                    pred_laneLines_prob[ii] > prob_th]
-            pred_category = [pred_category[ii] for ii in range(len(pred_laneLines_prob)) if
-                    pred_laneLines_prob[ii] > prob_th]
-            pred_laneLines_prob = [pred_laneLines_prob[ii] for ii in range(len(pred_laneLines_prob)) if
-                    pred_laneLines_prob[ii] > prob_th]
+            # filter out probability [NOT IN LATEST VERSION]
+            # pred_lanes = [pred_lanes[ii] for ii in range(len(pred_laneLines_prob)) if
+            #         pred_laneLines_prob[ii] > prob_th]
+            # pred_category = [pred_category[ii] for ii in range(len(pred_laneLines_prob)) if
+            #         pred_laneLines_prob[ii] > prob_th]
+            # pred_laneLines_prob = [pred_laneLines_prob[ii] for ii in range(len(pred_laneLines_prob)) if
+            #         pred_laneLines_prob[ii] > prob_th]
             
             if raw_file not in gts:
                 print('Some raw_file from your predictions do not exist in the test tasks.', raw_file)

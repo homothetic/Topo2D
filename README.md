@@ -88,7 +88,7 @@ bash tools/dist_train.sh projects/configs/topo2d/openlanev2.py 4
 
 Evaluate Topo2D with 4 GPUs:
 ```shell
-bash tools/dist_test.sh projects/configs/topo2d/openlanev2.py openlanev2_exp6_10_24e.pth 4
+bash tools/dist_test.sh projects/configs/topo2d/openlanev2.py openlanev2_exp6_10_24e.pth 4 --eval openlanev2
 ```
 
 ## Main Results

@@ -228,8 +228,6 @@ def main():
         outputs = custom_multi_gpu_test(model, data_loader, args.tmpdir,
                                         args.gpu_collect)
 
-    # import pickle as pkl
-    # outputs = pkl.load(open("results.pkl", "rb"))
     rank, _ = get_dist_info()
     if rank == 0:
         # import pdb; pdb.set_trace()
@@ -255,7 +253,7 @@ def main():
                 eval_kwargs.pop(key, None)
             eval_kwargs.update(dict(metric=args.eval, **kwargs))
 
-            if eval_kwargs['metric'][0] in ['clrnet', 'chamfer']:
+            if eval_kwargs['metric'][0] in ['clrnet', 'chamfer', 'openlanev2']:
                 test_result = dataset.evaluate(outputs, **eval_kwargs)
                 print(test_result)
             elif eval_kwargs['metric'][0] in ['openlane']:
