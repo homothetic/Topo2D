@@ -416,6 +416,7 @@ class OpenlaneDataset(Dataset):
                 False).
         """
         results = self.img_infos[idx].copy()
+        results['img_prefix'] = None
         results['img_info'] = {}
         results['img_info']['filename'] = results['filename']
         # print(results['filename'])
@@ -446,6 +447,7 @@ class OpenlaneDataset(Dataset):
             
             gt_2dlanes = []
             gt_2dboxes = []
+            gt_3dlanes = []
             for i in range(gt_pts.shape[0]):
                 # import pdb; pdb.set_trace()
                 if self.sample_method == '2d':
@@ -492,6 +494,8 @@ class OpenlaneDataset(Dataset):
                                     x_target_i, y_target_i, z_target_i, only_in_img=False)
                     valid_pts = np.where(valid_flag)
                     x_target_i, y_target_i, z_target_i = x_target_i[valid_pts], y_target_i[valid_pts], z_target_i[valid_pts]
+                    if len(x_target_i) < 2:
+                        continue
                     # 3. Resample laneline in 3d
                     x_target_i, y_target_i, z_target_i = self.resample_laneline_in_y_3d(
                                     x_target_i, y_target_i, z_target_i, self.num_pts_per_gt_vec)
@@ -507,8 +511,10 @@ class OpenlaneDataset(Dataset):
                 else:
                     gt_2dlanes.append(lane[None]) # [1, 20, 2]
                 gt_2dboxes.append(self.transform_box(lane))
+                gt_3dlanes.append(results['gt_3dlanes'][i])
             results['gt_2dlanes'] = np.stack(gt_2dlanes, axis=0)
             results['gt_2dboxes'] = np.stack(gt_2dboxes, axis=0)
+            results['gt_3dlanes'] = np.stack(gt_3dlanes, axis=0)
             results['gt_labels'] = np.zeros((len(gt_2dlanes),), dtype=np.int64)
 
             # import pdb; pdb.set_trace()
